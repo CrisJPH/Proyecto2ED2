@@ -1,0 +1,86 @@
+#include <Arduino.h>  // Librería base de Arduino
+#include "Wire.h"  // Librería para comunicación I2C
+#include <ESP32SPISlave.h>  // Librería para comunicación SPI en modo esclavo
+
+// Definiciones de constantes
+#define I2C_DEV_ADDR 0x55  // Dirección del dispositivo I2C
+#define pot 36  // Pin de entrada analógica para el potenciómetro
+
+// Declaración de función que se ejecuta cuando se recibe una solicitud I2C
+void onRequest();  
+
+// Objeto para la comunicación SPI en modo esclavo
+ESP32SPISlave slave;
+
+// Definición de pines para los LEDs
+#define LED1 24  
+#define LED2 23  
+#define LED3 22  
+
+// Tamaño del buffer SPI
+static constexpr uint32_t BUFFER_SIZE {32};
+
+// Buffers para transmisión y recepción de datos por SPI
+uint8_t spi_slave_tx_buf[BUFFER_SIZE];
+uint8_t spi_slave_rx_buf[BUFFER_SIZE];
+
+void setup() {
+  // Configurar pines de los LEDs como salida
+  pinMode(LED1, OUTPUT);
+  pinMode(LED2, OUTPUT);
+  pinMode(LED3, OUTPUT);
+
+  // Iniciar comunicación Serial a 9600 baudios
+  Serial.begin(9600);
+
+  // Habilitar la salida de depuración en la consola Serial
+  Serial.setDebugOutput(true);
+
+  // Configurar el pin del potenciómetro como entrada
+  pinMode(pot, INPUT);
+
+  // Establecer la función de interrupción I2C que se ejecutará al recibir una solicitud
+  Wire.onRequest(onRequest);
+
+  // Iniciar comunicación I2C con la dirección definida
+  Wire.begin((uint8_t)I2C_DEV_ADDR);
+
+  // Configurar SPI en modo esclavo:
+  // SPI_MODE0: Polaridad y fase estándar
+  slave.setDataMode(SPI_MODE0);
+
+  // Establecer el tamaño de la cola del esclavo SPI a 1
+  slave.setQueueSize(1);
+
+  // Iniciar la comunicación SPI en el bus VSPI
+  slave.begin(VSPI);
+
+  // Inicializar los buffers SPI con ceros para limpiar cualquier dato previo
+  memset(spi_slave_tx_buf, 0, BUFFER_SIZE);
+  memset(spi_slave_rx_buf, 0, BUFFER_SIZE);
+}
+
+void loop() {
+  // Esperar datos entrantes en los buffers SPI
+  slave.wait(spi_slave_rx_buf, spi_slave_tx_buf, BUFFER_SIZE);
+
+  // Mientras haya datos disponibles en el esclavo SPI
+  while (slave.available()) {
+    // (En este ejemplo no se realiza ninguna acción específica)
+  }
+}
+
+// Función que se ejecuta al recibir una solicitud del maestro I2C
+void onRequest() {
+  // Leer el valor del potenciómetro desde el pin correspondiente
+  int lector_potenciometro = analogRead(pot);
+
+  // Mapear el valor leído (0 a 4096) a un rango de 0 a 255
+  int pot_map = map(lector_potenciometro, 0, 4096, 0, 255);
+
+  // Enviar el valor mapeado al maestro a través de I2C
+  Wire.print(pot_map);
+
+  // Imprimir el valor mapeado por Serial para depuración
+  Serial.println(pot_map);
+}
